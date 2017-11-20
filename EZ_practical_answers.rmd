@@ -1,0 +1,439 @@
+---
+title: "Practical: The EZ diffusion model"
+output: html_document
+---
+
+The code blocks below can be copy pasted onto the R command line.
+
+Reference: Wagenmakers, E.-J., van der Maas, H. L. J. & Grasman, R. P. P. P. (2007). An EZ-diffusion model for response time and accuracy. Psychonomic Bulletin & Review, 14, 3-22
+
+First, clear your workspace and load the EZ formula:
+
+```{r load_ez}
+rm(list = ls())
+
+get.vaTer = function(Pc, VRT, MRT, s=.1)
+{
+    s2 = s^2
+    # The default value for the scaling parameter s equals .1
+
+    if (any(Pc == 0))
+        cat("Oops, Pc == 0!\n")
+    if (any(Pc == 0.5))
+        cat("Oops, Pc == .5!\n")
+    if (any(Pc == 1))
+        cat("Oops, Pc == 1!\n")
+    # If Pc equals 0, .5, or 1, the method will not work, and
+    # an edge-correction is required.
+
+    L = qlogis(Pc)
+    # The function "qlogis" calculates the logit.
+    x = L*(L*Pc^2 - L*Pc + Pc - 0.5)/VRT
+    v = sign(Pc-0.5)*s*x^(1/4)
+    # This gives drift rate.
+
+    a = s2*qlogis(Pc)/v
+    # This gives boundary separation.
+
+    y   = -v*a/s2
+    MDT = (a/(2*v))*(1-exp(y))/(1+exp(y))
+    Ter = MRT-MDT
+    # This gives nondecision time.
+
+    return(list(v=v, a=a, Ter=Ter))
+}
+```
+
+
+## Assignment 1
+
+What are the differences between the EZ diffusion model and the “full” Ratcliff diffusion model?
+
+The differences are: 
+
+1. Conceptual: EZ assumes that the RT distribution for correct and error responses are equal 
+2. Parametric: EZ assumes no bias in choice, ie the start point of accumulation is always midway between the bounds 
+3. Parametric: The full model allows across-trial drift rate variability (eta), Across-trials range in starting point (sz), and across-trial non-decision time variability (st), which EZ does not allow. 
+4. Practical: EZ can only compute the parameters for one condition at the time. The full model allows modeling constraints (eg. the model forces the Ter parameter to be equal for all conditions).
+
+
+## Assignment 2
+
+Assume you have a data set with the following properties
+
+```{r assigment_2.1}
+Pc <- .9 # the proportion correct responses
+MRT <- 100 # the mean response time
+VRT <- 1000 # the variance in the response time distribution
+```
+
+the EZ diffusion parameters are provided by
+
+```{r assigment_2.2}
+get.vaTer(Pc, VRT, MRT)
+```
+
+with v: drift rate; a: boundary separation (threshold); Ter: non-decision time ("T (perceptual) encoding & response (execution)").
+
+1. How do the parameters change if the proportion of correct responses changes?
+2. How do the parameters change if the mean response time changes?
+3. How do the parameters change if the variance in the response times changes?
+
+Make a graph to illustrate the effects of behavioral changes on parameters.
+
+```{r assignment_2_answers_1}
+par(mfrow=c(3,3))
+
+# First, only change Pc, keep MRT and VRT constant
+pcs <- seq(0.55, .95, .05)
+mrts <- rep(100, length(pcs))
+vrts <- rep(1000, length(pcs))
+parameters = get.vaTer(pcs, vrts, mrts)
+plot(x=pcs, y=parameters$v, type='l', xlab='Pc', ylab='v')
+plot(x=pcs, y=parameters$a, type='l', xlab='Pc', ylab='a')
+plot(x=pcs, y=parameters$Ter, type='l', xlab='Pc', ylab='Ter')
+
+# Only change MRT, keep Pc and VRT constant
+mrts <- seq(100, 1000, 100)
+pcs <- rep(.9, length(mrts))
+vrts <- rep(1000, length(mrts))
+parameters = get.vaTer(pcs, vrts, MRT=mrts)
+plot(x=mrts, y=parameters$v, type='l', xlab='MRT', ylab='v')
+plot(x=mrts, y=parameters$a, type='l', xlab='MRT', ylab='a')
+plot(x=mrts, y=parameters$Ter, type='l', xlab='MRT', ylab='Ter')
+
+# Only change VRT, keep Pc and MRT constant
+vrts <- seq(500, 1500, 100)
+pcs <- rep(.9, length(vrts))
+mrts <- rep(100, length(vrts))
+parameters = get.vaTer(pcs, vrts, MRT=mrts)
+plot(x=vrts, y=parameters$v, type='l', xlab='VRT', ylab='v')
+plot(x=vrts, y=parameters$a, type='l', xlab='VRT', ylab='a')
+plot(x=vrts, y=parameters$Ter, type='l', xlab='VRT', ylab='Ter')
+```
+
+Thus, decision-related parameters $v$ and $a$ are affected by Pc and VRT, but not by MRT.
+
+## Assignment 3
+
+you have the following hypothetical data set:
+```{r assignment_3}
+dat <- read.csv("data1.txt", header=FALSE)
+correct <- dat[[1]]
+rt <- dat[[2]]
+plot(density(rt[correct==FALSE]), col=2, main="")
+lines(density(rt[correct==TRUE]), col=1)
+```
+
+Can you compute the EZ diffusion parameters (follow the steps below)? 
+
+1. Inspect the data for suitability 
+2. Compute the relevant properties of the data 
+3. Compute the EZ diffusion parameters as above
+
+This data seems suitable, because the RT distributions are similar, and errors are not faster or slower than correct responses (22.2586207 vs 23.5 on average).
+
+Now we can compute the relevant properties of the data as well as the EZ parameters:
+```{r assignment_3_answer}
+Pc <- mean(correct)
+VRT <- var(rt[correct==TRUE])
+MRT <- mean(rt[correct==TRUE])
+get.vaTer(Pc, VRT, MRT)
+```
+
+## Assignment 4
+you have the following hypothetical data set:
+
+```{r assigment_4}
+dat <- read.csv("data2.txt", header=FALSE)
+correct <- dat[[1]]
+rt <- dat[[2]]
+```
+
+
+1. Compute the EZ diffusion parameters
+2. Do these parameters make sense? If no, why not?
+
+Compute the relevant properties of the data as well as the EZ parameters:
+```{r assignment_4_ans}
+Pc <- mean(correct)
+VRT <- var(rt[correct==TRUE])
+MRT <- mean(rt[correct==TRUE])
+get.vaTer(Pc, VRT, MRT)
+```
+
+The data were inappropriate, because the distributions of error RT and correct RT differ:
+```{r assignment_4_ans2}
+plot(density(rt[correct==TRUE]), main="")
+lines(density(rt[correct==FALSE]), col=2)
+mean(rt[correct==TRUE]) # the means also differ
+mean(rt[correct==FALSE])
+```
+
+
+## Assignment 5
+
+you have the following data set, taken from a lexical decision experiment by Keuleers et al (2010):
+
+```{r assignment_5_load_brysbaert}
+load("brysbaert.Rdata")
+```
+
+The data frame is called `d`, and the column names are (I think) self explanatory.
+
+1. Compute the EZ diffusion parameters per participant and condition (ie, word or nonword, the wnw column)
+2. Can you interpret the parameters? In other words, which (if any) of the parameters explains the difference between words and non-words?
+3. Do these results make theoretical sense? Why (not)?
+
+```{r assignment_5_ans}
+df <- data.frame(pp=rep(levels(d$participant), length(unique(d$wnw))), wnw=rep(1:2, each=nlevels(d$participant)), v=NA, a=NA, Ter=NA)
+
+# For each participant and condition (word/nonword), calculate EZ-parameters
+for(pp in levels(d$participant)) {
+  for(wnw in 1:2) {
+    mrt <- mean(d[d$participant==pp&d$wnw==wnw&d$accuracy==1, 'rt'])
+    vrt <- var(d[d$participant==pp&d$wnw==wnw&d$accuracy==1,'rt'])
+    pc <- mean(d[d$participant==pp&d$wnw==wnw,'accuracy'])
+    
+    vater = get.vaTer(pc, vrt, mrt)
+    df[df$pp==pp&df$wnw==wnw,'v'] = vater$v
+    df[df$pp==pp&df$wnw==wnw,'a'] = vater$a
+    df[df$pp==pp&df$wnw==wnw,'Ter'] = vater$Ter
+  }
+}
+
+# Calculate differences between conditions
+a_diff <- df[df$wnw==1,'a'] - df[df$wnw==2,'a']
+v_diff <- df[df$wnw==1,'v'] - df[df$wnw==2,'v']
+Ter_diff <- df[df$wnw==1,'Ter'] - df[df$wnw==2,'Ter']
+
+# Make boxplots
+par(mfrow=c(3,1), las=1)
+boxplot(a_diff, horizontal=TRUE, main='Difference in a between conditions (word - nonword)')
+boxplot(v_diff, horizontal=TRUE, main='Difference in v between conditions (word - nonword)')
+boxplot(Ter_diff, horizontal=TRUE, main='Difference in Ter between conditions (word - nonword)')
+
+# And do some t-tests
+with(df, t.test(a ~ wnw, paired=TRUE)) # paired = TRUE because this is a within-subject design
+with(df, t.test(v ~ wnw, paired=TRUE))
+with(df, t.test(Ter ~ wnw, paired=TRUE))
+```
+
+To me, this result only partly makes sense. The boundary parameter is often assumed to be set prior to stimulus onset, so how can participants adjust their boundary for nonword trials if they do not know in advance the nature of the trial (word vs nonword, which is the task)?. With respect to drift rate, I suppose it makes sense that evidence accumulation in favor of a word response goes faster (ie, more evidence) than for nonword responses.
+
+## Assignment 6
+
+The following two functions are needed. The first function concerns the joint density function of the diffusion model. The second function concerns a function that simulates data (rts and accuracies) according to the diffusion model.
+
+```{r diff_functions}
+ddiff = function(t,x,a,v,Ter) {
+  # t: reaction time
+  # x: accuracies
+  #a: boundary sep; v: drift rate; ter: non-decision time
+  sh1=sh2=1
+  sh3=0
+  eps=1e-15
+  k=1
+  while(abs(sh1-sh2) > eps | abs(sh1-sh3) > eps){
+    K=k*sin(.5*pi*k)*exp(-(pi^2*k^2)/(2*a^2)*(t-Ter))
+    sh1=sh2
+    sh2=sh3
+    sh3=sh3+pi/a^2*exp(a*v*(x-.5)-v^2/2*(t-Ter))*K
+    k=k+1
+    }
+  return(sh3)
+  }
+
+sim.diff = function(N,a,v,ter) {
+  #a: boundary sep; v: drift rate; ter: non-decision time
+  si=1 #scaling factor
+  M=pi*si^2/a^2 * (exp(a*v/(2*si^2))+exp(-a*v/(2*si^2))) * 1/ (v^2/(2*si^2)+pi^2*si^2 / (2*a^2))
+  lmb = v^2/(2*si^2) +pi^2*si^2/(2*a^2)
+  eps=1e-15
+  ou=c()
+  rej=0
+  while(length(ou)<N){
+    w=runif(1); u=runif(1);
+    FF=pi^2*si^4 * 1/(pi^2*si^4+v^2*a^2)
+    sh1=1
+    sh2=0
+    sh3=0
+    i=0
+    while(abs(sh1-sh2)>eps | abs(sh2-sh3)>eps){
+      sh1=sh2
+      sh2=sh3
+      i=i+1
+      sh3= sh2 + (2*i+1)*(-1)^i*(1-u)^(FF*(2*i+1)^2)
+      }
+    eval=1+(1-u)^-FF * sh3
+    if(w<=eval) ou=c(ou,1/lmb*abs(log(1-u)))
+    else rej=rej+1
+    }
+  p=exp(a*v)/(1+exp(a*v))
+  chance=runif(N)
+  (p>chance)*1->x
+  return(list(x=x,rt=ou+ter))
+}
+```
+
+1. Simulate data for N=500 trials with boundary separation, `a`, equal to 2, drift rate, `v`, equal to 1, and non-decision time, `Ter`, equal to 0.5 and plot the distributions. You can use the following code for generating data:
+
+```{r assignment6_1}
+set.seed(1310)
+a=2
+v=1
+N=500
+ter=.75
+data=sim.diff(N,a,v,ter)
+rt=data$rt
+x=data$x
+```
+
+2. Using the function ddiff above, determine the log-likelihood of the data for a=1, v=2, and ter=0.5. You should obtain -2607.498
+
+```{r assignment6_2}
+ou=c()
+for(p in 1:N) ou[p]=ddiff(rt[p],x[p],1,2,.5)
+
+sum(log(ou))
+```
+
+3. Use R’s build-in function `optim` to maximize the log-likelihood of the unkown parameters `a`, `v`, and `Ter`. See `?optim` for more details. In optim it is possible to provide upper and lower bounds, use `c(0,Inf)` for `a`, use `c(-Inf, Inf)` for `v`, and `c(0,min(rt)-.01)` for `Ter`. To enable specification of boundaries, you need to use `method="L-BFGS-B"`. In addition you need to provide the following argument to optim: `control=list(fnscale=-1)` because otherwise optim will try to minimize the likelihood. Make sure that you use the data generated above (i.e., using `set.seed(1310)`). The value of the likelihood function at its maximum should be -480.5922. As starting values v=1, a=1, and Ter=0.25 worked for me.
+
+```{r assignment6_3}
+LL=function(par,X,rt){
+  a=par[1]
+  v=par[2]
+  ter=par[3]
+  ou=matrix(,length(X),1)
+  for(p in 1:length(X))
+    ou[p]=ddiff(rt[p],X[p],a,v,ter)
+  return(sum(log(ou)))
+  }
+
+optim(c(1,1,.25),LL,X=x,rt=rt,lower=c(0,-Inf,0),upper=c(Inf,Inf,Inf),method="L-BFGS-B",control=list(fnscale=-1))
+```
+
+4. Estimate the EZ-diffusion parameters using the function get.vaTer(). Make sure that you use s=1 in this function (the default is s=.1 which puts the parameters on a different scale). Compare these EZ-parameter estimates to the ones you obtained using maximum likelihood. What do you think of the similarity/differences?
+
+```{r assignment6_4}
+get.vaTer(mean(x), var(rt), mean(rt), s=1)
+```
+
+The parameter estimates are highly similar. The small differences are due to differences in approximations in the two methods (ML is subject to an approximate to the infinite sum, and a convergence criterium, while EZ is not).
+
+## Assignment 7
+
+Simulate data using the following code:
+
+```{r assignment_7_data}
+set.seed(1310)
+a=2
+v=1
+N=500
+ter=.75
+data=sim.diff(N,a,v,ter)
+rt1=data$rt
+x1=data$x
+a=1
+data=sim.diff(N,a,v,ter)
+rt2=data$rt
+x2=data$x
+rt=c(rt1,rt2)
+x=c(x1,x2)
+```
+i.e., this code simulates data for 500 trials administered under an accuracy instruction (‘answer as accurate as possible’) and 500 trials administered under a speed instruction (‘answer as fast as possible’).
+
+1. Which parameter is simulated to be affected by the manipulation?
+
+The boundary separation/threshold parameter.
+
+We now introduce a new parameter $\Delta$a. This parameter models the difference between the a in the second condition as compared to the first condition. Thus it holds that
+
+**Accuracy condition (first 500 trials of vector rt)**
+
+- boundary separation = a
+- drift rate = v
+- non-decision time = Ter
+
+**Speed condition (second 500 trials of vector rt)**
+
+- boundary separation = a + $\Delta$a
+- drift rate = v
+- non-decision time = Ter
+
+i.e., we have four parameters: a, $\Delta$a, v, Ter.
+
+2. In the data as simulated above (using `set.seed(1310)`), what is the likelihood of the data for a=2, $\Delta$a=.5, v=1, and Ter=.5? You should obtain -1125.825.
+```{r assignment7_2_anw}
+cond=c(rep(1,500),rep(2,500)) # define conditions
+
+LL=function(par,X,rt,cond){
+  a=par[1]
+  a2=par[2]
+  v=par[3]
+  ter=par[4]
+  
+  ou=matrix(,length(X),1)
+  for(p in 1:length(X)){
+    if(cond[p]==1) ou[p]=ddiff(rt[p],X[p],a,v,ter)
+    if(cond[p]==2) ou[p]=ddiff(rt[p],X[p],a+a2,v,ter)
+    }
+  return(sum(log(ou)))
+  }
+
+LL(c(2,.5,1,.5),x,rt,cond)
+```
+
+3. Optimize the likelihood function for the unknown parameters (a, $\Delta$a, v, Ter). Use the same settings as before. For $\Delta$a, you can use `c(-Inf, Inf)` as boundaries. Make sure that you use the data generated above (i.e., using `set.seed(1310)`). The value of the likelihood function at its maximum should be -441.9329. As starting values a=1, $\Delta$a=.1, v=1, and Ter=0.5 worked for me.
+
+```{r assignment_7_3_ans}
+optim(c(1,.1,1,.5),LL,X=x,rt=rt,cond=cond,lower=c(0,-Inf,0,0),upper=c(Inf,Inf,Inf,1),method="L-BFGS-B",control=list(fnscale=-1))
+```
+
+4. What do you think of the recovery of the true parameter values (i.e., are the parameter values that are used to create the data satisfactorily recovery in the parameter estimates)?
+
+The true values are adequately recovered.
+
+5. Do the above, but now for v. That is, simulate 500 trials with v=1, a=1, and Ter=.75 and 500 trials with v=2, a=1, and Ter=.75. Fit a model with an effect on v (i.e., introduce $\Delta$v similarly as above in case of a). If you use `set.seed(1310)` again in data generation, the maximum of your likelihood function should be 179.8556.
+
+```{r assignment_7_4_ans}
+set.seed(1310)
+
+N=500
+a=1
+v=1
+ter=.75
+
+data=sim.diff(N,a,v,ter)
+rt1=data$rt
+x1=data$x
+
+N=500
+a=1
+v=2
+ter=.75
+
+data=sim.diff(N,a,v,ter)
+rt2=data$rt
+x2=data$x
+
+rt=c(rt1,rt2)
+x=c(x1,x2)
+cond=c(rep(1,500),rep(2,500))
+
+LL=function(par,X,rt,cond){
+  a=par[1]
+  v=par[2]
+  v2=par[3]
+  ter=par[4]
+  ou=matrix(NA,length(X),1)
+  for(p in 1:length(X)){
+    if(cond[p]==1) ou[p]=ddiff(rt[p],X[p],a,v,ter)
+    if(cond[p]==2) ou[p]=ddiff(rt[p],X[p],a,v+v2,ter)
+    }
+  return(sum(log(ou)))
+  }
+
+optim(c(1,1,.1,.5),LL,X=x,rt=rt,cond=cond,lower=c(0,-Inf,-Inf,0),upper=c(Inf,Inf,Inf,min(rt)-.05),method="L-BFGS-B",control=list(fnscale=-1))
+```
